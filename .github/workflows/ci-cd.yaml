@@ -27,3 +27,28 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/${{ github.repository }}:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1.10.0
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+
+      - name: Update image to freshly built one
+        run: |
+          kubectl set image deployment/wisecow-deployment wisecow=ghcr.io/${{ github.repository }}:latest
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/wisecow-deployment --timeout=90s
+
+      - name: Show running pods (proof it worked)
+        run: kubectl get pods -o wide
